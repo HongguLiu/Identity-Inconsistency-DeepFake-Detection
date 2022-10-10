@@ -142,7 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--type', type=str, required=True, help='The type of Fake video, you should choose from types')
     parser.add_argument('--quality', type=str, default='raw', help='The quality of the video, you should choose from qualities')
     parser.add_argument('--aug', type=bool, default=False)
-    parser.add_argument('--balance_weight', type=int, default=0, help='Balance the real and fake.')
+    parser.add_argument('--balance_weight', type=bool, default=False, help='Balance the real and fake.')
 
 
 
@@ -188,8 +188,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
-    if args.balance_weight != 0:
-        class_weights = torch.from_numpy(np.asarray([args.balance_weight,1])).type(torch.FloatTensor).cuda()
+    if args.balance_weight:
+        class_weights = torch.from_numpy(np.asarray([1,0.2])).type(torch.FloatTensor).cuda()
         criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
     else:
         criterion = nn.CrossEntropyLoss().cuda()
