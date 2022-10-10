@@ -128,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument('--weight', type=str, default='/root/insightface/model_zoo/arcface_torch/ms1mv3_arcface_r50_fp16/backbone.pth', help='Arcface pretrained weight')
     parser.add_argument('--epochs', '-e', type=int, default=100)
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.01, help='Learning rate')
-    parser.add_argument('--weight_decay', '-wd', type=float, default=1e-6, help='Weight decay rate')
+    parser.add_argument('--weight_decay', '-wd', type=float, default=1e-8, help='Weight decay rate')
     parser.add_argument('--batch_size', '-bs', type=int, default=1, help='Number of Training')
     parser.add_argument('--num_classes', '-n', type=int, default=2, help='Number of Classes')
     parser.add_argument('--latent_dim', '-ld', type=int, default=25088, help='Number of Latent Dimensions')
@@ -142,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--type', type=str, required=True, help='The type of Fake video, you should choose from types')
     parser.add_argument('--quality', type=str, default='raw', help='The quality of the video, you should choose from qualities')
     parser.add_argument('--aug', type=bool, default=False)
+    parser.add_argument('--balance_weight', type=bool, default=False, help='Balance the real and fake.')
 
 
 
@@ -187,9 +188,11 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
-    #class_weights = torch.from_numpy(np.asarray([1,4])).type(torch.FloatTensor).cuda()
-    #criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
-    criterion = nn.CrossEntropyLoss().cuda()
+    if args.balance_weight:
+        class_weights = torch.from_numpy(np.asarray([5,1])).type(torch.FloatTensor).cuda()
+        criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
+    else:
+        criterion = nn.CrossEntropyLoss().cuda()
 
 
     optimizer = torch.optim.Adam(model_lstm.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay)
