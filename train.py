@@ -142,7 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--type', type=str, required=True, help='The type of Fake video, you should choose from types')
     parser.add_argument('--quality', type=str, default='raw', help='The quality of the video, you should choose from qualities')
     parser.add_argument('--aug', type=bool, default=False)
-    parser.add_argument('--balance_weight', type=bool, default=False, help='Balance the real and fake.')
+    parser.add_argument('--balance_weight', type=int, default=0, help='Balance the real and fake.')
 
 
 
@@ -188,8 +188,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
-    if args.balance_weight:
-        class_weights = torch.from_numpy(np.asarray([5,1])).type(torch.FloatTensor).cuda()
+    if args.balance_weight != 0:
+        class_weights = torch.from_numpy(np.asarray([args.balance_weight,1])).type(torch.FloatTensor).cuda()
         criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
     else:
         criterion = nn.CrossEntropyLoss().cuda()
@@ -208,7 +208,7 @@ if __name__ == "__main__":
         v_true, v_pred, v_acc = test(epoch, val_loader, model_id, model_lstm, criterion, test=False, log_path=log_path) #validate the model
         v_auc = roc_auc_score(v_true, v_pred)
         print_log("The Validation accuracy is:{:.4f}\nAUC is: {:.4f}\n".format(v_acc, v_auc), log_path)
-        print_log(classification_report(v_true, v_pred, target_names=[args.type, 'real']), log_path)
+        print_log(classification_report(v_true, v_pred, labels=[0, 1], target_names=['Real', args.type]), log_path)
         if v_auc > best_val_auc:
             best_val_epoch = epoch
             best_val_auc = v_auc
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         t_true, t_pred, t_acc = test(epoch, test_loader, model_id, model_lstm, criterion, log_path=log_path)
         t_auc = roc_auc_score(t_true, t_pred)
         print_log("The Test accuracy is:{:.4f}\nAUC is: {:.4f}\n".format(t_acc, t_auc), log_path)
-        print_log(classification_report(t_true, t_pred, target_names=[args.type, 'real']), log_path)
+        print_log(classification_report(t_true, t_pred, labels=[0, 1], target_names=['Real', args.type]), log_path)
         if t_auc > best_test_auc:
             best_test_epoch = epoch
             best_test_auc = t_auc

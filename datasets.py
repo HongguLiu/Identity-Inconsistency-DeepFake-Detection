@@ -36,7 +36,7 @@ class VideoDataset(Dataset):
         for video in fh:
             video = video.rstrip()
             video = video.replace('quality', quality)
-            if types == 'All':
+            if types == 'All' and not 'Origin' in video:
                 for tp in types_list:
                     video = video.replace('type', tp)
                     videos.append(video)
