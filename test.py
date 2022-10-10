@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, random_split
 
 # from torch.utils.tensorboard import SummaryWriter
 
-from datasets import MyDataset, VideoDataset
+from datasets import MyDataset, VideoDataset, VideoDataset_test
 
 from model.base_model import Identity_model, LSTM_model, get_model
 
@@ -40,7 +40,8 @@ class AverageMeter(object):
 
 def calculate_accuracy(outputs, targets):
     batch_size = targets.size(0)
-
+    # import pdb
+    # pdb.set_trace()
     _, pred = outputs.topk(1, 1, True)
     pred = pred.t()
     correct = pred.eq(targets.view(1, -1))
@@ -78,15 +79,67 @@ def test(data_loader, model_id, model_lstm, criterion, test=True, log_path=None)
             feature_id = model_id(inputs)
             id_feature = feature_id.detach() # detach the feature_id from the model_id.
             outputs = model_lstm(id_feature)
-            loss = torch.mean(criterion(outputs, targets.type(torch.cuda.LongTensor)))
             acc = calculate_accuracy(outputs, targets.type(torch.cuda.LongTensor))
             _, p = torch.max(outputs,1) 
             true += (targets.type(torch.cuda.LongTensor)).detach().cpu().numpy().reshape(len(targets)).tolist()
             pred += p.detach().cpu().numpy().reshape(len(p)).tolist()
-            losses.update(loss.item(), inputs.size(0))
             accuracies.update(acc, inputs.size(0))
         print_log('Test Accuracy {}'.format(accuracies.avg), log_path)
     return true, pred, accuracies.avg
+
+def test_allframes(data_loader, model_id, model_lstm, criterion, test=True, log_path=None):
+    if test:
+        print('Testing.......')
+    model_id.eval()
+    model_lstm.eval()
+    losses = AverageMeter()
+    accuracies = AverageMeter()
+    pred = []
+    prob = []
+    true = []
+    with torch.no_grad():
+        for i, (inputs, targets, seg) in enumerate(data_loader):
+            torch.cuda.empty_cache()
+            seg = seg.item()
+            if torch.cuda.is_available():
+                targets = targets.cuda().type(torch.cuda.FloatTensor)
+                inputs = inputs.cuda()
+                model_id.cuda()
+                model_lstm.cuda()
+            feature_id = model_id(inputs)
+            id_feature = feature_id.detach() # detach the feature_id from the model_id.
+            # the shape of id_feature is B * S * 25088 
+            b, s, _ = id_feature.shape
+            n_correct_segs = 0
+            fake_cnt = 0
+            for j in range(seg):
+                id_feature_seg = id_feature[:,j*args.sequence_length:(j+1)*args.sequence_length,:]
+                # print(id_feature_seg.shape)
+                output_seg = model_lstm(id_feature_seg)
+                _, p_seg = torch.max(output_seg, 1)
+                batch_size = targets.size(0)
+                p_seg_t = p_seg.t()#  p_seg tensor([0])
+                if p_seg_t.item() == 1:
+                    fake_cnt += 1
+                correct = p_seg_t.eq(targets.view(1, -1))
+                n_correct_segs += correct.float().sum().item()
+            
+            prob.append(fake_cnt / seg)
+            acc = n_correct_segs / seg
+            pred.append(int((fake_cnt / seg)>=0.5))
+
+
+            # outputs = model_lstm(id_feature)
+            # acc = calculate_accuracy(outputs, targets.type(torch.cuda.LongTensor))
+            # _, p = torch.max(outputs,1) 
+            true += (targets.type(torch.cuda.LongTensor)).detach().cpu().numpy().reshape(len(targets)).tolist()
+            # pred += p.detach().cpu().numpy().reshape(len(p)).tolist()
+            accuracies.update(acc, inputs.size(0))
+            # import pdb
+            # pdb.set_trace()
+            # print("Accuracy:{:.4f}\tProb:{:.4f}\tPred:{:.4f}\n".format(acc, fake_cnt / seg, int((fake_cnt / seg)>=0.5)))
+        # print_log('Test Accuracy {}'.format(accuracies.avg), log_path)
+    return true, pred, prob, accuracies.avg
 
 types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'all']
 qualities = ['raw', 'c23', 'c40']
@@ -130,7 +183,8 @@ if __name__ == "__main__":
                                         transforms.Resize((im_size,im_size)),
                                         transforms.ToTensor(),
                                         transforms.Normalize(mean,std)])
-    test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
+    # test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
+    test_dataset = VideoDataset_test(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
     # import pdb
     # pdb.set_trace()
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
@@ -146,8 +200,11 @@ if __name__ == "__main__":
     cmd = sys.argv
     print_log(" ".join(cmd), log_path)
 
-    t_true, t_pred, t_acc = test(test_loader, model_id, model_lstm, criterion, log_path=log_path)
+    # t_true, t_pred, t_acc = test(test_loader, model_id, model_lstm, criterion, log_path=log_path)
+    t_true, t_pred, t_prob, t_acc = test_allframes(test_loader, model_id, model_lstm, criterion, log_path=log_path)
     t_auc = roc_auc_score(t_true, t_pred)
+    t_auc_prob = roc_auc_score(t_true, t_prob)
     # print("The Test accuracy is:{:.4f}\nAUC is: {:.4f}\n".format(t_acc, t_auc))
-    print_log("The Test accuracy is:{:.4f}\nAUC is: {:.4f}\n".format(t_acc, t_auc), log_path)
+    print_log("The Test pred accuracy is:{:.4f}\n".format(t_acc), log_path)
+    print_log("The Test prob AUC is: {:.4f}\nThe pred AUC is: {:.4f}".format(t_auc_prob, t_auc), log_path)
     print_log(classification_report(t_true, t_pred, target_names=[args.type, 'real']), log_path)

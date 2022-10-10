@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, random_split
 
 # from torch.utils.tensorboard import SummaryWriter
 
-from datasets import MyDataset, VideoDataset, VideoDataset_aug
+from datasets import MyDataset, VideoDataset, VideoDataset_aug, VideoDataset_test
 
 from model.base_model import Identity_model, LSTM_model, get_model
 
@@ -106,17 +106,15 @@ def test(epoch, data_loader, model_id, model_lstm, criterion, test=True, log_pat
             feature_id = model_id(inputs)
             id_feature = feature_id.detach() # detach the feature_id from the model_id.
             outputs = model_lstm(id_feature)
-            loss = torch.mean(criterion(outputs, targets.type(torch.cuda.LongTensor)))
             acc = calculate_accuracy(outputs, targets.type(torch.cuda.LongTensor))
             _, p = torch.max(outputs,1) 
             true += (targets.type(torch.cuda.LongTensor)).detach().cpu().numpy().reshape(len(targets)).tolist()
             pred += p.detach().cpu().numpy().reshape(len(p)).tolist()
-            losses.update(loss.item(), inputs.size(0))
             accuracies.update(acc, inputs.size(0))
         print_log('[Epoch {} / {}] Accuracy {}'.format(epoch, args.epochs, accuracies.avg), log_path)
     return true, pred, accuracies.avg
 
-types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'all']
+types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'All']
 qualities = ['raw', 'c23', 'c40']
 
 im_size = 112
@@ -133,9 +131,9 @@ if __name__ == "__main__":
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-6, help='Weight decay rate')
     parser.add_argument('--batch_size', '-bs', type=int, default=1, help='Number of Training')
     parser.add_argument('--num_classes', '-n', type=int, default=2, help='Number of Classes')
-    parser.add_argument('--latent_dim', '-ld', type=int, default=512, help='Number of Latent Dimensions')
+    parser.add_argument('--latent_dim', '-ld', type=int, default=25088, help='Number of Latent Dimensions')
     parser.add_argument('--num_layers', '-nl', type=int, default=3, help='Number of LSTM layers')
-    parser.add_argument('--hidden_dim', '-hd', type=int, default=512, help='Number of Hidden Dimensions')
+    parser.add_argument('--hidden_dim', '-hd', type=int, default=2048, help='Number of Hidden Dimensions')
     parser.add_argument('--sequence_length', '-sq', type=int, default=20, help='Number of Sequence Lengths')
     parser.add_argument('--bidirectional', type=bool, default=False)
     parser.add_argument('--train_file', type=str, default='/nas/home/hliu/Datasets/FF++/data_list/ffpp_train.txt', help='The file list of training examples')
