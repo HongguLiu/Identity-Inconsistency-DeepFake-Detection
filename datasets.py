@@ -6,6 +6,7 @@ import albumentations as A
 import cv2
 import random
 import torch
+import json
 
 class MyDataset(Dataset):
     def __init__(self, root='/nas/home/hliu/Datasets/FF++/', transform=None):
@@ -36,7 +37,8 @@ class VideoDataset(Dataset):
         for video in fh:
             video = video.rstrip()
             video = video.replace('quality', quality)
-            if types == 'All' and not 'Origin' in video:
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
                 for tp in types_list:
                     video = video.replace('type', tp)
                     videos.append(video)
@@ -131,11 +133,18 @@ class VideoDataset_aug(Dataset):
     def __init__(self, txt_path, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
         fh = open(txt_path, 'r')
         videos = []
+        types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
         for video in fh:
             video = video.rstrip()
-            video = video.replace('type', types)
             video = video.replace('quality', quality)
-            videos.append(video)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
+                for tp in types_list:
+                    video = video.replace('type', tp)
+                    videos.append(video)
+            else:
+                video = video.replace('type', types)
+                videos.append(video)
         fh.close()
         self.videos = videos
         self.transform = transform
@@ -193,4 +202,70 @@ class VideoDataset_aug(Dataset):
             label = 0  #real is 0
         else:
             label = 1  #fake is 1
+        return imgs, label
+
+
+class VideoDataset_selfswap(Dataset):
+    def __init__(self, txt_path, split_json, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
+        fh = open(txt_path, 'r')
+        videos = []
+        for video in fh:
+            video = video.rstrip()
+            video = video.replace('quality', quality)
+        fh.close()
+        # Consturct the pair of the videos.
+        # json_file = open(split_json, 'r')
+        # json_split = json.load(json_file)
+        # self.json_dict={}
+        # for line in json_split:
+            # self.json_dict[line[0]] = line[1]
+            # self.json_dict[line[1]] = line[0]
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        if 'Origin' in v_path:
+            v_pair_path = v_path
+            label = 0
+        else:
+            v_path = v_path.replace('type', 'Origin')
+            vid_pre = v_path.split('/')[-1] #000_003
+            vid = vid_pre.split('_')[0] #000
+            vid_pair = vid_pre.split('_')[1] #003
+            v_path = v_path.replace(vid_pre, vid)
+            v_pair_path = v_path.replace(vid, vid_pair)
+            label = 1
+
+        frames = os.listdir(v_path)
+        frames_pair = os.listdir(v_pair_path)
+        frames.sort()
+        frames_pair.sort()
+        if len(frames) >= len(frames_pair):
+            frames = frames[:len(frames_pair)]
+        else:
+            frames_pair = frames_pair[:len(frames)]
+        start_max = len(frames)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        imgs=[]
+        for i in range(start, start+self.sequence_length):
+            if i % 2 == 0:
+                fn = os.path.join(v_path, frames[i])
+            else:
+                fn = os.path.join(v_pair_path, frames_pair[i])
+            img = Image.open(fn).convert('RGB')
+            if self.transform is not None:
+                img = self.transform(img)
+                imgs.append(img)
+            else:
+                imgs.append(img)
+        imgs = torch.stack(imgs)
+        # if 'Origin' in v_path:
+        #     label = 0  #real is 0
+        # else:
+        #     label = 1  #fake is 1
         return imgs, label

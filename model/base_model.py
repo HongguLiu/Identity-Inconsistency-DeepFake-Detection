@@ -49,7 +49,7 @@ class Identity_model(nn.Module):
     def forward(self, x):
         b, s, c, h, w = x.shape
         x = x.view(b*s, c, h, w)
-        feature_id = self.model(x)
+        feature_id = self.model(x) # 512 * 7 * 7
         feature_id = torch.flatten(feature_id, 1)
         feature_id = feature_id.view(b, s, 25088)
         # feature_id = self.model(x)

@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, random_split
 
 # from torch.utils.tensorboard import SummaryWriter
 
-from datasets import MyDataset, VideoDataset, VideoDataset_aug, VideoDataset_test
+from datasets import MyDataset, VideoDataset, VideoDataset_aug, VideoDataset_test, VideoDataset_selfswap
 
 from model.base_model import Identity_model, LSTM_model, get_model
 
@@ -114,7 +114,7 @@ def test(epoch, data_loader, model_id, model_lstm, criterion, test=True, log_pat
         print_log('[Epoch {} / {}] Accuracy {}'.format(epoch, args.epochs, accuracies.avg), log_path)
     return true, pred, accuracies.avg
 
-types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'All']
+types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'All', 'SelfSwap']
 qualities = ['raw', 'c23', 'c40']
 
 im_size = 112
@@ -143,6 +143,7 @@ if __name__ == "__main__":
     parser.add_argument('--quality', type=str, default='raw', help='The quality of the video, you should choose from qualities')
     parser.add_argument('--aug', type=bool, default=False)
     parser.add_argument('--balance_weight', type=bool, default=False, help='Balance the real and fake.')
+    parser.add_argument('--selfswap', type=bool, default=False, help='Build the fake video by swapping the frames of corresponding different videos.')
 
 
 
@@ -182,7 +183,13 @@ if __name__ == "__main__":
         train_dataset = VideoDataset_aug(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
     else:
         train_dataset = VideoDataset(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
-    val_dataset = VideoDataset(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
+    if args.selfswap:
+        print_log("Use selfswap for training.....", log_path)
+        train_dataset = VideoDataset_selfswap(args.train_file, args.sequence_length, test_transforms, args.type, args.quality)
+        val_dataset = VideoDataset_selfswap(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
+    else:
+        val_dataset = VideoDataset(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
+
     test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
