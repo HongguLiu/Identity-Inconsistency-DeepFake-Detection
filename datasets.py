@@ -206,12 +206,13 @@ class VideoDataset_aug(Dataset):
 
 
 class VideoDataset_selfswap(Dataset):
-    def __init__(self, txt_path, split_json, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
+    def __init__(self, txt_path, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
         fh = open(txt_path, 'r')
         videos = []
         for video in fh:
             video = video.rstrip()
             video = video.replace('quality', quality)
+            videos.append(video)
         fh.close()
         # Consturct the pair of the videos.
         # json_file = open(split_json, 'r')
