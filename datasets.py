@@ -214,13 +214,6 @@ class VideoDataset_selfswap(Dataset):
             video = video.replace('quality', quality)
             videos.append(video)
         fh.close()
-        # Consturct the pair of the videos.
-        # json_file = open(split_json, 'r')
-        # json_split = json.load(json_file)
-        # self.json_dict={}
-        # for line in json_split:
-            # self.json_dict[line[0]] = line[1]
-            # self.json_dict[line[1]] = line[0]
         self.videos = videos
         self.transform = transform
         self.sequence_length = sequence_length
@@ -265,10 +258,6 @@ class VideoDataset_selfswap(Dataset):
             else:
                 imgs.append(img)
         imgs = torch.stack(imgs)
-        # if 'Origin' in v_path:
-        #     label = 0  #real is 0
-        # else:
-        #     label = 1  #fake is 1
         return imgs, label
 
 class VideoDataset_add_selfswap(Dataset):
@@ -281,10 +270,12 @@ class VideoDataset_add_selfswap(Dataset):
             video = video.replace('quality', quality)
             # if types == 'All' and not 'Origin' in video: # 1 times Origin
             if types == 'All': # 5 times Origin
+                videos.append(video) # add extra origin videos and 'type' fake videos
                 for tp in types_list:
                     video = video.replace('type', tp)
                     videos.append(video)
             else:
+                videos.append(video) # add extra origin videos and 'type' fake videos
                 video = video.replace('type', types)
                 videos.append(video)
         fh.close()
@@ -297,19 +288,37 @@ class VideoDataset_add_selfswap(Dataset):
     
     def __getitem__(self, index):
         v_path = self.videos[index]
+        if 'type' in v_path:  # build the self swap dataset
+            v_path = v_path.replace('type', 'Origin')
+            vid_pre = v_path.split('/')[-1] #000_003
+            vid = vid_pre.split('_')[0] #000
+            vid_pair = vid_pre.split('_')[1] #003
+            v_path = v_path.replace(vid_pre, vid)
+            v_pair_path = v_path.replace(vid, vid_pair)
+            label = 1
+        elif 'Origin' in v_path:
+            v_pair_path = v_path
+            label = 0
+        else:
+            v_pair_path = v_path # Fake data
+            label = 1
+
         frames = os.listdir(v_path)
+        frames_pair = os.listdir(v_pair_path)
         frames.sort()
+        frames_pair.sort()
+        if len(frames) >= len(frames_pair):
+            frames = frames[:len(frames_pair)]
+        else:
+            frames_pair = frames_pair[:len(frames)]
         start_max = len(frames)-self.sequence_length
-        if start_max <= 0:
-            print(v_path)
-            v_path = '/nas/home/hliu/Datasets/FF++/Origin/raw/000/'
-            frames = os.listdir(v_path)
-            frames.sort()
-            start_max = len(frames)-self.sequence_length
         start = np.random.randint(0,start_max)
         imgs=[]
         for i in range(start, start+self.sequence_length):
-            fn = os.path.join(v_path, frames[i])
+            if i % 2 == 0:
+                fn = os.path.join(v_path, frames[i])
+            else:
+                fn = os.path.join(v_pair_path, frames_pair[i])
             img = Image.open(fn).convert('RGB')
             if self.transform is not None:
                 img = self.transform(img)
@@ -317,8 +326,4 @@ class VideoDataset_add_selfswap(Dataset):
             else:
                 imgs.append(img)
         imgs = torch.stack(imgs)
-        if 'Origin' in v_path:
-            label = 0  #real is 0
-        else:
-            label = 1  #fake is 1
         return imgs, label

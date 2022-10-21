@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, random_split
 
 # from torch.utils.tensorboard import SummaryWriter
 
-from datasets import MyDataset, VideoDataset, VideoDataset_aug, VideoDataset_test, VideoDataset_selfswap
+from datasets import MyDataset, VideoDataset, VideoDataset_aug, VideoDataset_test, VideoDataset_selfswap, VideoDataset_add_selfswap
 
 from model.base_model import Identity_model, LSTM_model, get_model
 
@@ -144,6 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--aug', type=bool, default=False)
     parser.add_argument('--balance_weight', type=bool, default=False, help='Balance the real and fake.')
     parser.add_argument('--selfswap', type=bool, default=False, help='Build the fake video by swapping the frames of corresponding different videos.')
+    parser.add_argument('--add_selfswap', type=bool, default=False, help='Build the fake video by selfswap and fake videos.')
 
 
 
@@ -184,9 +185,14 @@ if __name__ == "__main__":
     else:
         train_dataset = VideoDataset(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
     if args.selfswap:
-        print_log("Use selfswap for training.....", log_path)
-        train_dataset = VideoDataset_selfswap(args.train_file, args.sequence_length, test_transforms, args.type, args.quality)
-        val_dataset = VideoDataset_selfswap(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
+        if args.add_selfswap:
+            print_log("Use both fake and selfswap for training.....", log_path)
+            train_dataset = VideoDataset_add_selfswap(args.train_file, args.sequence_length, test_transforms, args.type, args.quality)
+            val_dataset = VideoDataset_add_selfswap(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
+        else:
+            print_log("Use only selfswap for training.....", log_path)
+            train_dataset = VideoDataset_selfswap(args.train_file, args.sequence_length, test_transforms, args.type, args.quality)
+            val_dataset = VideoDataset_selfswap(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
     else:
         val_dataset = VideoDataset(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
 
