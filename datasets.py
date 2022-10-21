@@ -270,3 +270,55 @@ class VideoDataset_selfswap(Dataset):
         # else:
         #     label = 1  #fake is 1
         return imgs, label
+
+class VideoDataset_add_selfswap(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
+        fh = open(txt_path, 'r')
+        videos = []
+        types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
+        for video in fh:
+            video = video.rstrip()
+            video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
+                for tp in types_list:
+                    video = video.replace('type', tp)
+                    videos.append(video)
+            else:
+                video = video.replace('type', types)
+                videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        frames = os.listdir(v_path)
+        frames.sort()
+        start_max = len(frames)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FF++/Origin/raw/000/'
+            frames = os.listdir(v_path)
+            frames.sort()
+            start_max = len(frames)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        imgs=[]
+        for i in range(start, start+self.sequence_length):
+            fn = os.path.join(v_path, frames[i])
+            img = Image.open(fn).convert('RGB')
+            if self.transform is not None:
+                img = self.transform(img)
+                imgs.append(img)
+            else:
+                imgs.append(img)
+        imgs = torch.stack(imgs)
+        if 'Origin' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, label
