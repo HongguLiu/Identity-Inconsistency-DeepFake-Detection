@@ -141,7 +141,7 @@ def test_allframes(data_loader, model_id, model_lstm, criterion, test=True, log_
         # print_log('Test Accuracy {}'.format(accuracies.avg), log_path)
     return true, pred, prob, accuracies.avg
 
-types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'all']
+types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'all', 'celebdfv2']
 qualities = ['raw', 'c23', 'c40']
 
 im_size = 112

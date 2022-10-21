@@ -123,7 +123,7 @@ class VideoDataset_test(Dataset):
             else:
                 imgs.append(img)
         imgs = torch.stack(imgs)
-        if 'Origin' in v_path:
+        if 'Origin' in v_path  or 'real' in v_path:
             label = 0  #real is 0
         else:
             label = 1  #fake is 1
