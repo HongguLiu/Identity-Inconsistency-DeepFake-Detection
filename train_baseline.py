@@ -26,6 +26,7 @@ class Identity_model(nn.Module):
         super(Identity_model, self).__init__()
         net = get_model(name, fp16=False)
         if weight != 'None':
+            print('Load Pretrained Face Recognition Network!')
             weight = '/nas/home/hliu/insightface/model_zoo/arcface_torch/ms1mv3_arcface_r50_fp16/backbone.pth'
             net.load_state_dict(torch.load(weight))
         self.model = nn.Sequential(*list(net.children())[:-2])
@@ -203,9 +204,10 @@ if __name__ == "__main__":
         train_dataset = VideoDataset(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
     if args.selfswap:
         print_log("Use selfswap for training.....", log_path)
-        train_dataset = VideoDataset_selfswap(args.train_file, args.sequence_length, test_transforms, args.type, args.quality)
+        train_dataset = VideoDataset_selfswap(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
         val_dataset = VideoDataset_selfswap(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
     else:
+        train_dataset = VideoDataset(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
         val_dataset = VideoDataset(args.val_file, args.sequence_length, test_transforms, args.type, args.quality)
 
     test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)

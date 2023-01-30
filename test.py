@@ -71,6 +71,7 @@ def test(data_loader, model_id, model_lstm, criterion, test=True, log_path=None)
     true = []
     with torch.no_grad():
         for i, (inputs, targets) in enumerate(data_loader):
+            torch.cuda.empty_cache()
             if torch.cuda.is_available():
                 targets = targets.cuda().type(torch.cuda.FloatTensor)
                 inputs = inputs.cuda()
@@ -141,7 +142,7 @@ def test_allframes(data_loader, model_id, model_lstm, criterion, test=True, log_
         # print_log('Test Accuracy {}'.format(accuracies.avg), log_path)
     return true, pred, prob, accuracies.avg
 
-types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'all', 'celebdfv2']
+types = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures', 'All', 'celebdfv2']
 qualities = ['raw', 'c23', 'c40']
 
 im_size = 112
@@ -172,7 +173,8 @@ if __name__ == "__main__":
     model_id = Identity_model(args.network, args.weight)
     # import pdb
     # pdb.set_trace()
-    model_lstm = LSTM_model(args.num_classes, args.latent_dim, args.num_layers, args.hidden_dim, args.sequence_length, args.bidirectional)
+    # model_lstm = LSTM_model(args.num_classes, args.latent_dim, args.num_layers, args.hidden_dim, args.sequence_length, args.bidirectional)
+    model_lstm = LSTM_model(args.num_classes, args.latent_dim, args.num_layers, args.hidden_dim, args.sequence_length, 0, args.bidirectional, batch_first=True)
 
     model_lstm.load_state_dict(torch.load(args.checkpoints))
 
@@ -185,8 +187,8 @@ if __name__ == "__main__":
                                         transforms.Normalize(mean,std)])
     # test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
     test_dataset = VideoDataset_test(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
-    # import pdb
-    # pdb.set_trace()
+    import pdb
+    pdb.set_trace()
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     #class_weights = torch.from_numpy(np.asarray([1,4])).type(torch.FloatTensor).cuda()
     #criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
@@ -207,4 +209,5 @@ if __name__ == "__main__":
     # print("The Test accuracy is:{:.4f}\nAUC is: {:.4f}\n".format(t_acc, t_auc))
     print_log("The Test pred accuracy is:{:.4f}\n".format(t_acc), log_path)
     print_log("The Test prob AUC is: {:.4f}\nThe pred AUC is: {:.4f}".format(t_auc_prob, t_auc), log_path)
-    print_log(classification_report(t_true, t_pred, target_names=[args.type, 'real']), log_path)
+    # print_log(classification_report(t_true, t_pred, target_names=[args.type, 'real']), log_path)
+    print_log(classification_report(t_true, t_pred, target_names=['Real', args.type]), log_path) # 0 is real, 1 is fake
