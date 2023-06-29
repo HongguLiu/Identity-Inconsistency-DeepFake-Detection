@@ -114,6 +114,7 @@ def test_allframes(data_loader, model_id, model_lstm, criterion, test=True, log_
             n_correct_segs = 0
             fake_cnt = 0
             for j in range(seg):
+                torch.cuda.empty_cache()
                 id_feature_seg = id_feature[:,j*args.sequence_length:(j+1)*args.sequence_length,:]
                 # print(id_feature_seg.shape)
                 output_seg = model_lstm(id_feature_seg)
@@ -187,17 +188,17 @@ if __name__ == "__main__":
                                         transforms.Normalize(mean,std)])
     # test_dataset = VideoDataset(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
     test_dataset = VideoDataset_test(args.test_file, args.sequence_length, test_transforms, args.type, args.quality)
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     #class_weights = torch.from_numpy(np.asarray([1,4])).type(torch.FloatTensor).cuda()
     #criterion = nn.CrossEntropyLoss(weight = class_weights).cuda()
     criterion = nn.CrossEntropyLoss().cuda()
 
-    if not os.path.exists(os.path.join('/nas/home/hliu/fakeid_detection/test', args.name)):
-        os.makedirs(os.path.join('/nas/home/hliu/fakeid_detection/test', args.name))
+    if not os.path.exists(os.path.join('/nas/home/hliu/fakeid_detection/test_2023', args.name)):
+        os.makedirs(os.path.join('/nas/home/hliu/fakeid_detection/test_2023', args.name))
 
-    log_path = os.path.join('/nas/home/hliu/fakeid_detection/test', args.name) + '/test_reports.txt'
+    log_path = os.path.join('/nas/home/hliu/fakeid_detection/test_2023', args.name) + '/test_reports.txt'
 
     cmd = sys.argv
     print_log(" ".join(cmd), log_path)

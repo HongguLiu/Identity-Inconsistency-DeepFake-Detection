@@ -11,11 +11,11 @@ from torch.utils.data import DataLoader, random_split
 
 # from torch.utils.tensorboard import SummaryWriter
 
-from datasets import MyDataset, VideoDataset_spatial, VideoDataset_test_spatial
+from datasets import MyDataset, VideoDataset_spatial, VideoDataset_test_spatial, VideoDataset_spatial_aug
 
 from model.base_model import Identity_model, get_model
 
-from model.lstm_simclr import IDC, SpatialNet, LSTM_model
+from model.lstm_simclr import IDC, SpatialNet, LSTM_model, IDC_small
 
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 
@@ -28,15 +28,15 @@ import pdb
 import random
 
 
-# def set_seed(seed):
-#     torch.manual_seed(seed)
-#     random.seed(seed)
-#     np.random.seed(seed)
-#     if torch.cuda.is_available():
-#         torch.cuda.manual_seed(seed)
-#         torch.cuda.manual_seed_all(seed)
+def set_seed(seed):
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
-# set_seed(42)
+set_seed(42)
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -89,14 +89,14 @@ def train_epoch(epoch, num_epochs, data_loader, model_id, IDC_net, criterion, op
             inputs_s = inputs_s.cuda()
             model_id.cuda()
             IDC_net.cuda()
-        # import pdb
-        # pdb.set_trace()
-        # feature_id = model_id(inputs)
-        # id_feature = feature_id.detach() # detach the feature_id from the model_id.
+        import pdb
+        pdb.set_trace()
+        feature_id = model_id(inputs)
+        id_feature = feature_id.detach() # detach the feature_id from the model_id.
         # id_feature: 1,s,25088
         optimizer.zero_grad()
-        # outputs = IDC_net(inputs_s, id_feature)
-        outputs = IDC_net(inputs_s, inputs_s)
+        outputs = IDC_net(inputs_s, id_feature)
+        # outputs = IDC_net(inputs_s, inputs_s)
         #feature_lstm: 1, 2048
         # print(outputs)
         loss  = criterion(outputs, targets.type(torch.cuda.LongTensor))
@@ -126,13 +126,13 @@ def test(epoch, data_loader, model_id, IDC_net, criterion, test=True, log_path=N
                 inputs_s = inputs_s.cuda()
                 model_id.cuda()
                 IDC_net.cuda()
-            # feature_id = model_id(inputs)
-            # id_feature = feature_id.detach() # detach the feature_id from the model_id.
+            feature_id = model_id(inputs)
+            id_feature = feature_id.detach() # detach the feature_id from the model_id.
             # outputs = lstm_id(id_feature)
             # import pdb
             # pdb.set_trace()
-            # outputs = IDC_net(inputs_s, id_feature)
-            outputs = IDC_net(inputs_s, inputs_s)
+            outputs = IDC_net(inputs_s, id_feature)
+            # outputs = IDC_net(inputs_s, inputs_s)
             acc = calculate_accuracy(outputs, targets.type(torch.cuda.LongTensor))
             _, p = torch.max(outputs,1) 
             true += (targets.type(torch.cuda.LongTensor)).detach().cpu().numpy().reshape(len(targets)).tolist()
@@ -189,7 +189,8 @@ if __name__ == "__main__":
     print_log(" ".join(cmd), log_path)
     
     model_id = Identity_model(args.network, args.weight)
-    IDC_net = IDC(sequence_length=args.sequence_length, num_classes=args.num_classes)
+    # IDC_net = IDC(sequence_length=args.sequence_length, num_classes=args.num_classes)
+    IDC_net = IDC_small(sequence_length=args.sequence_length, num_classes=args.num_classes)
 
     model_id = nn.DataParallel(model_id)
     IDC_net = nn.DataParallel(IDC_net)
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     
     if args.aug:
         print_log("Use augumentation for training.....", log_path)
-        train_dataset = VideoDataset_aug(args.train_file, args.sequence_length, train_transforms, args.type, args.quality)
+        train_dataset = VideoDataset_spatial_aug(args.train_file, args.sequence_length, train_transforms,train_transforms_spatial, args.type, args.quality)
     else:
         train_dataset = VideoDataset_spatial(args.train_file, args.sequence_length, train_transforms, train_transforms_spatial, args.type, args.quality)
     if args.selfswap:
@@ -244,8 +245,8 @@ if __name__ == "__main__":
 
 
     # params = list(spatial_net.parameters())+list(lstm_id.parameters())+list(IDC_net.parameters())
-    optimizer = torch.optim.Adam(IDC_net.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay)
-    # optimizer = torch.optim.SGD(lstm_id.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay)
+    # optimizer = torch.optim.Adam(IDC_net.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay)
+    optimizer = torch.optim.SGD(IDC_net.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay)
 
     best_val_epoch = 0
     best_test_epoch = 0

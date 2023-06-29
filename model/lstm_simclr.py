@@ -33,8 +33,9 @@ class SpatialNet(nn.Module):
         b, s, c, h, w = x.shape
         x = x.view(b*s, c, h, w)
         out = self.spatial(x)
-        out = torch.mean(out, dim=0).unsqueeze(dim=0)
         # out.shape: [b,2048]
+        out = torch.mean(out, dim=0).unsqueeze(dim=0)
+        # out.shape: [1,2048]
         return out
 
 class LSTM_model(nn.Module):
@@ -64,12 +65,36 @@ class IDC(nn.Module):
         self.t_model = LSTM_model(num_classes=num_classes, latent_dim=25088, lstm_layers=3, hidden_dim=2048, sequence_length=sequence_length)
         # self.att = nn.MultiheadAttention(2048*2, 8)
         self.mlp = nn.Sequential(nn.Linear(2048*2, 2048*2), nn.ReLU(), nn.Linear(2048*2, num_classes))
-        # self.fc = nn.Linear(2048, num_classes)
+        # self.fc = nn.Linear(2048*2, num_classes)
     def forward(self, x, id_feature):
         out_s = self.s_model(x)
+        # print(out_s.shape)
         out_t = self.t_model(id_feature)
+        # print(out_t.shape)
         features = torch.cat((out_s, out_t), dim=1)
         # output, attention_weights = self.att(features, features, features)
-        # output = self.fc(out_s)
+        # output = self.fc(features)
+        output = self.mlp(features)
+        return output
+
+
+class IDC_small(nn.Module):
+    def __init__(self, sequence_length, num_classes=2):
+        super(IDC_small, self).__init__()
+        self.s_model = SpatialNet(name="xception", num_classes=num_classes)
+        self.t_model = LSTM_model(num_classes=num_classes, latent_dim=2048, lstm_layers=3, hidden_dim=2048, sequence_length=sequence_length)
+        # self.att = nn.MultiheadAttention(2048*2, 8)
+        self.linear = nn.Linear(25088, 2048)
+        self.mlp = nn.Sequential(nn.Linear(2048*2, 2048*2), nn.ReLU(), nn.Linear(2048*2, num_classes))
+        # self.fc = nn.Linear(2048*2, num_classes)
+    def forward(self, x, id_feature):
+        out_s = self.s_model(x)
+        # print(out_s.shape)
+        id_feature = self.linear(id_feature)
+        out_t = self.t_model(id_feature)
+        # print(out_t.shape)
+        features = torch.cat((out_s, out_t), dim=1)
+        # output, attention_weights = self.att(features, features, features)
+        # output = self.fc(features)
         output = self.mlp(features)
         return output

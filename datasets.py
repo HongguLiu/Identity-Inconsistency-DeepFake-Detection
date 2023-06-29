@@ -192,7 +192,6 @@ class VideoDataset_test(Dataset):
             else:
                 imgs.append(img)
         imgs = torch.stack(imgs)
-        imgs_s = torch.stack(imgs_s)
         if 'Origin' in v_path  or 'real' in v_path:
             label = 0  #real is 0
         else:
@@ -245,6 +244,7 @@ class VideoDataset_test_spatial(Dataset):
                 imgs.append(img)
                 imgs_s.append(img_s)
         imgs = torch.stack(imgs)
+        imgs_s = torch.stack(imgs_s)
         if 'Origin' in v_path  or 'real' in v_path:
             label = 0  #real is 0
         else:
@@ -326,6 +326,88 @@ class VideoDataset_aug(Dataset):
         else:
             label = 1  #fake is 1
         return imgs, label
+
+class VideoDataset_spatial_aug(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None, transform_spatial=None, types='Deepfakes', quality='raw'):
+        fh = open(txt_path, 'r')
+        videos = []
+        types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
+        for video in fh:
+            video = video.rstrip()
+            video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
+                for tp in types_list:
+                    video = video.replace('type', tp)
+                    videos.append(video)
+                    video = video.replace(tp, 'type')
+            else:
+                video = video.replace('type', types)
+                videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.transform_spatial = transform_spatial
+        self.sequence_length = sequence_length
+        aug = A.Compose([
+            A.ChannelShuffle(p=0.2),
+            A.GaussNoise(p=0.3),
+            A.OneOf([
+                A.MotionBlur(p=.2),
+                A.MedianBlur(blur_limit=3, p=0.1),
+                A.Blur(blur_limit=3, p=0.1),
+            ], p=0.3),
+            A.OneOf([
+                A.CoarseDropout(max_height=4, max_width=4, p=0.5),
+                A.PixelDropout(p=0.1)
+            ], p=0.3),
+            A.OneOf([
+                A.CLAHE(clip_limit=2),
+                A.Sharpen(),
+                A.Emboss(),
+                A.RandomBrightnessContrast(),            
+            ], p=0.3),
+            A.HueSaturationValue(p=0.3),
+        ])
+        self.aug = aug
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        frames = os.listdir(v_path)
+        frames.sort()
+        start_max = len(frames)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FF++/Origin/raw/000/'
+            frames = os.listdir(v_path)
+            frames.sort()
+            start_max = len(frames)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        imgs=[]
+        imgs_s=[]
+        for i in range(start, start+self.sequence_length):
+            fn = os.path.join(v_path, frames[i])
+            img = Image.open(fn).convert('RGB')
+            img_np = np.array(img)
+            img = self.aug(image=img_np)["image"]
+            if self.transform is not None:
+                img_s = self.transform_spatial(img)
+                img = self.transform(img)
+                imgs.append(img)
+                imgs_s.append(img_s)
+            else:
+                imgs.append(img)
+                imgs_s.append(img_s)
+        imgs = torch.stack(imgs)
+        imgs_s = torch.stack(imgs_s)
+        if 'Origin' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, imgs_s, label
 
 
 class VideoDataset_selfswap(Dataset):
@@ -515,3 +597,301 @@ class VideoDatasets_behavior(Dataset):
         else:
             label = 1  #fake is 1
         return ldms, label
+
+
+class FakeAVDataset(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None):
+        fh = open(txt_path, 'r')
+        videos = []
+        # types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
+        for video in fh:
+            video = video.rstrip().split(' ')[0]
+            if not 'FakeVideo' in video:
+                for i in range(10):
+                    videos.append(video)
+            # video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            # if types == 'All': # 5 times Origin
+                # for tp in types_list:
+                    # video = video.replace('type', tp)
+            #         videos.append(video)
+            #         video = video.replace(tp, 'type')
+            # else:
+            #     video = video.replace('type', types)
+            #     videos.append(video)
+            videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        frames = os.listdir(v_path)
+        frames.sort()
+        start_max = len(frames)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FakeAVCeleb_v1.2/RealVideo-RealAudio/id00018_00181/'
+            frames = os.listdir(v_path)
+            frames.sort()
+            start_max = len(frames)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        imgs=[]
+        for i in range(start, start+self.sequence_length):
+            fn = os.path.join(v_path, frames[i])
+            img = Image.open(fn).convert('RGB')
+            if self.transform is not None:
+                img = self.transform(img)
+                imgs.append(img)
+            else:
+                imgs.append(img)
+        imgs = torch.stack(imgs)
+        if 'RealVideo' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, label
+
+class FakeAVDataset_test(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None):
+        fh = open(txt_path, 'r')
+        videos = []
+        # types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
+        for video in fh:
+            video = video.rstrip().split(' ')[0]
+            # video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            # if types == 'All': # 5 times Origin
+                # for tp in types_list:
+                    # video = video.replace('type', tp)
+            #         videos.append(video)
+            #         video = video.replace(tp, 'type')
+            # else:
+            #     video = video.replace('type', types)
+            #     videos.append(video)
+            videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        frames = os.listdir(v_path)
+        frames.sort()
+        start_max = len(frames)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FakeAVCeleb_v1.2/RealVideo-RealAudio/id00018_00181/'
+            frames = os.listdir(v_path)
+            frames.sort()
+            start_max = len(frames)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        imgs=[]
+        for i in range(start, start+self.sequence_length):
+            fn = os.path.join(v_path, frames[i])
+            img = Image.open(fn).convert('RGB')
+            if self.transform is not None:
+                img = self.transform(img)
+                imgs.append(img)
+            else:
+                imgs.append(img)
+        imgs = torch.stack(imgs)
+        if 'RealVideo' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, label
+
+# class FakeAVDataset_test(Dataset):
+#     def __init__(self, txt_path, sequence_length = 20, transform=None):
+#         fh = open(txt_path, 'r')
+#         videos = []
+#         # types_list = ['Deepfakes', 'Face2Face', 'FaceShifter', 'FaceSwap', 'NeuralTextures']
+#         for video in fh:
+#             video = video.rstrip().split(' ')[0]
+#             # video = video.replace('quality', quality)
+#             # if types == 'All' and not 'Origin' in video: # 1 times Origin
+#             # # if types == 'All': # 5 times Origin
+#             #     for tp in types_list:
+#             #         video = video.replace('type', tp)
+#             #         videos.append(video)
+#             #         video = video.replace(tp, 'type')
+#             # else:
+#             #     video = video.replace('type', types)
+#             #     videos.append(video)
+#             videos.append(video)
+#         fh.close()
+#         self.videos = videos
+#         self.transform = transform
+#         self.sequence_length = sequence_length
+    
+#     def __len__(self):
+#         return len(self.videos)
+    
+#     def __getitem__(self, index):
+#         v_path = self.videos[index]
+#         frames = os.listdir(v_path)
+#         frames.sort()
+#         seg = len(frames) // self.sequence_length
+#         frames = frames[0:seg*self.sequence_length]
+#         # start_max = len(frames)-self.sequence_length
+#         # if start_max <= 0:
+#         #     print(v_path)
+#         #     v_path = '/nas/home/hliu/Datasets/FF++/Origin/raw/000/'
+#         #     frames = os.listdir(v_path)
+#         #     frames.sort()
+#         #     start_max = len(frames)-self.sequence_length
+#         # start = np.random.randint(0,start_max)
+#         imgs=[]
+#         # for i in range(start, start+self.sequence_length):
+#         for i in range(len(frames)):
+#             fn = os.path.join(v_path, frames[i])
+#             img = Image.open(fn).convert('RGB')
+#             if self.transform is not None:
+#                 img = self.transform(img)
+#                 imgs.append(img)
+#             else:
+#                 imgs.append(img)
+#         imgs = torch.stack(imgs)
+#         if 'RealVideo' in v_path:
+#             label = 0  #real is 0
+#         else:
+#             label = 1  #fake is 1
+#         return imgs, label, seg
+
+class Arc512Dataset(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
+        fh = open(txt_path, 'r')
+        videos = []
+        types_list = ['Deepfakes_arcid512', 'Face2Face_arcid512', 'FaceShifter_arcid512', 'FaceSwap_arcid512', 'NeuralTextures_arcid512']
+        for video in fh:
+            video = video.rstrip()
+            video+=".npy"
+            video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
+                for tp in types_list:
+                    video = video.replace('type', tp)
+                    videos.append(video.replace('Origin', 'Origin_arcid512'))
+                    video = video.replace(tp, 'type')
+            else:
+                video = video.replace('type', types+'_arcid512')
+                videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        # print(v_path)
+        # frames = os.listdir(v_path)
+        # frames.sort()
+        id_np = np.load(v_path)
+        start_max = len(id_np)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FF++/Origin_arcid512/raw/000.npy'
+            # frames = os.listdir(v_path)
+            # frames.sort()
+            # id_np = np.load(v_path)
+            # start_max = len(id_np)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        # print(start)
+        # imgs=[]
+        # print(id_np.shape)
+        imgs = id_np[start:start+self.sequence_length]
+        # print(id_np.shape)
+        imgs = torch.tensor(imgs)
+        # print(imgs.shape)
+        # imgs = imgs.unsqueeze(0)
+        # for i in range(start, start+self.sequence_length):
+        #     fn = os.path.join(v_path, frames[i])
+        #     img = Image.open(fn).convert('RGB')
+        #     if self.transform is not None:
+        #         img = self.transform(img)
+        #         imgs.append(img)
+        #     else:
+        #         imgs.append(img)
+        # imgs = torch.stack(imgs)
+        if 'Origin' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, label
+
+class Arc25088Dataset(Dataset):
+    def __init__(self, txt_path, sequence_length = 20, transform=None, types='Deepfakes', quality='raw'):
+        fh = open(txt_path, 'r')
+        videos = []
+        types_list = ['Deepfakes_arcid25088', 'Face2Face_arcid25088', 'FaceShifter_arcid25088', 'FaceSwap_arcid25088', 'NeuralTextures_arcid25088']
+        for video in fh:
+            video = video.rstrip()
+            video+=".npy"
+            video = video.replace('quality', quality)
+            # if types == 'All' and not 'Origin' in video: # 1 times Origin
+            if types == 'All': # 5 times Origin
+                for tp in types_list:
+                    video = video.replace('type', tp)
+                    videos.append(video.replace('Origin', 'Origin_arcid25088'))
+                    video = video.replace(tp, 'type')
+            else:
+                video = video.replace('type', types+'_arcid25088')
+                videos.append(video)
+        fh.close()
+        self.videos = videos
+        self.transform = transform
+        self.sequence_length = sequence_length
+    
+    def __len__(self):
+        return len(self.videos)
+    
+    def __getitem__(self, index):
+        v_path = self.videos[index]
+        # print(v_path)
+        # frames = os.listdir(v_path)
+        # frames.sort()
+        id_np = np.load(v_path)
+        start_max = len(id_np)-self.sequence_length
+        if start_max <= 0:
+            print(v_path)
+            v_path = '/nas/home/hliu/Datasets/FF++/Origin_arcid25088/raw/000.npy'
+            # frames = os.listdir(v_path)
+            # frames.sort()
+            # id_np = np.load(v_path)
+            # start_max = len(id_np)-self.sequence_length
+        start = np.random.randint(0,start_max)
+        # print(start)
+        # imgs=[]
+        # print(id_np.shape)
+        imgs = id_np[start:start+self.sequence_length]
+        # print(imgs.shape)
+        imgs = torch.tensor(imgs)
+        imgs = imgs.view(self.sequence_length, 25088)
+        # print(imgs.shape)
+        # imgs = imgs.unsqueeze(0)
+        # for i in range(start, start+self.sequence_length):
+        #     fn = os.path.join(v_path, frames[i])
+        #     img = Image.open(fn).convert('RGB')
+        #     if self.transform is not None:
+        #         img = self.transform(img)
+        #         imgs.append(img)
+        #     else:
+        #         imgs.append(img)
+        # imgs = torch.stack(imgs)
+        if 'Origin' in v_path:
+            label = 0  #real is 0
+        else:
+            label = 1  #fake is 1
+        return imgs, label

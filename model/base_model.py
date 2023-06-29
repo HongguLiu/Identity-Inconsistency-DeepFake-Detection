@@ -91,9 +91,28 @@ class LSTM_model(nn.Module):
         # x = x.view(b, s, 25088)
         # x  = self.linear_model(x)
         x_lstm, _ = self.lstm(x, None)
-        x = self.relu(x)
+        # x = self.relu(x)
         # x = self.linear(torch.mean(x_lstm, dim=1))
         x = self.linear(x_lstm[:,-1,:])
         x = self.relu(x)
         # x = self.dropout(x)
         return x
+
+class Arcface_model(nn.Module):
+    def __init__(self, name, weight):
+        super(Arcface_model, self).__init__()
+        net = get_model(name, fp16=False)
+        weight = '/nas/home/hliu/insightface/model_zoo/arcface_torch/ms1mv3_arcface_r50_fp16/backbone.pth'
+        net.load_state_dict(torch.load(weight))
+        # self.model = net
+        self.model = nn.Sequential(*list(net.children())[:-2])
+        self.model = net
+        # self.linear_model = nn.Linear(25088, 2048, bias=False)
+
+    def forward(self, x):
+        b, s, c, h, w = x.shape
+        x = x.view(b*s, c, h, w)
+        feature_id = self.model(x) # bs * 512
+        # feature_id = torch.flatten(feature_id, 1)
+        feature_id = feature_id.view(b, s, 512)
+        return feature_id
